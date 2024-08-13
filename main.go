@@ -100,7 +100,7 @@ func init() {
 	thread = flag.Int("t", 50, "thread number")
 	ua = flag.String("ua", "Mantra", "User-Agent")
 	detailed = flag.Bool("d", false, "detailed")
-	rc = flag.String("c", "none", "cookies")
+	rc = flag.String("c", "", "cookies")
 }
 
 func banner() {
