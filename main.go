@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/cookiejar"
 	"os"
 	"regexp"
 	"strconv"
@@ -19,9 +18,9 @@ var (
 	thread   *int
 	silent   *bool
 	ua       *string
+	rc       *string
 	detailed *bool
 	secrets  map[string]bool = make(map[string]bool)
-	rc       *string
 )
 
 func req(url string) {
@@ -44,19 +43,10 @@ func req(url string) {
 	transp := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	jar, _ := cookiejar.New(nil)
-	var cookies []*http.Cookie
-	c_array := strings.Split(*rc, ";")
-	for _, c := range c_array {
-		temp_cookie := strings.Replace(c, " ", "", -1)
-		cookie := &http.Cookie{Name: strings.Split(temp_cookie, "=")[0], Value: strings.Split(temp_cookie, "=")[1]}
-		cookies = append(cookies, cookie)
-	}
+	httpclient := &http.Client{Transport: transp}
 	req, _ := http.NewRequest("GET", url, nil)
-	jar.SetCookies(req.URL, cookies)
 	req.Header.Set("User-Agent", *ua)
-	httpclient := &http.Client{Transport: transp, Jar: jar}
-
+	req.Header.Set("User-Agent", *rc)
 	r, err := httpclient.Do(req)
 	if err != nil {
 		fmt.Println("\033[31m[-]\033[37m", "\033[37m"+"Unable to make a request for "+url+"\033[37m")
