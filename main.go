@@ -46,7 +46,7 @@ func req(url string) {
 	httpclient := &http.Client{Transport: transp}
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("User-Agent", *ua)
-	req.Header.Set("User-Agent", *rc)
+	req.Header.Set("Cookie", *rc)
 	r, err := httpclient.Do(req)
 	if err != nil {
 		fmt.Println("\033[31m[-]\033[37m", "\033[37m"+"Unable to make a request for "+url+"\033[37m")
