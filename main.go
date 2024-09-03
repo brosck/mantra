@@ -34,7 +34,8 @@ func req(url string) {
 	var secretsPatterns = []regexp.Regexp{}
 
 	// Can be used as extra appended to above base
-	if extrapattern != nil {
+	if len(*extrapattern) > 0 {
+		//fmt.Println("Extra pattern detected!")
 		secretsPatternsStrings = append(secretsPatternsStrings, *extrapattern)
 	}
 
@@ -55,7 +56,10 @@ func req(url string) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("User-Agent", *ua)
 	req.Header.Set("Cookie", *rc)
-	fmt.Println("\033[33m[*]\033[37m", "\033[37m"+"Processing URL: "+url+"\033[37m")
+
+	if *detailed {
+		fmt.Println("\033[33m[*]\033[37m", "\033[37m"+"Processing URL: "+url+"\033[37m")
+	}
 
 	r, err := httpclient.Do(req)
 	if err != nil {
