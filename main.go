@@ -94,9 +94,9 @@ func req(url string) {
 				}
 			} else {
 				if secret != *extrapattern {
-					fmt.Println("\033[32m[+]\033[37m", url, "\033[32m[\033[37m"+secret+"\033[32m]\033[37m")
+					fmt.Println("\033[1;32m[+]\033[37m", url, "\033[1;32m[\033[37m"+secret+"\033[1;32m]\033[37m")
 				} else {
-					fmt.Println("\033[1;32m[+]\033[37m", url, "\033[1;32m[\033[37m"+secret+"\033[1;32m]\033[37m Extra pattern detected!\033[0m]")
+					fmt.Println("\033[32m[+]\033[37m", url, "\033[32m[\033[37m"+secret+"\033[32m]\033[37m -- Extra pattern detected! --\033[0m")
 				}
 			}
 		}
