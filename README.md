@@ -27,7 +27,7 @@ go install github.com/Brosck/mantra@latest
 From source code:
 
 ```
-git clone https://github.com/Brosck/mantra
+git clone https://github.com/brosck/mantra
 cd mantra
 make
 ./build/mantra-amd64-linux -h
