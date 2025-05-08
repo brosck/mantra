@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	neturl "net/url"
 	"net/http"
 	"os"
 	"regexp"
@@ -22,6 +23,7 @@ var (
 	detailed     *bool
 	secrets      map[string]bool = make(map[string]bool)
 	extrapattern *string
+	proxyAddr *string
 )
 
 func req(url string) {
@@ -51,6 +53,12 @@ func req(url string) {
 	}()
 	transp := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		Proxy: func(r *http.Request) (*neturl.URL, error) {
+			if *proxyAddr != "" {
+				return neturl.Parse(*proxyAddr)
+			}
+			return http.ProxyFromEnvironment(r)
+		},
 	}
 	httpclient := &http.Client{Transport: transp}
 	req, _ := http.NewRequest("GET", url, nil)
@@ -110,6 +118,7 @@ func init() {
 	detailed = flag.Bool("d", false, "detailed")
 	rc = flag.String("c", "", "cookies")
 	extrapattern = flag.String("ep", "", "extra, custom (regexp) pattern")
+	proxyAddr = flag.String("p", "", "proxy, e.g. http://127.0.0.1:8080 or socks5://192.168.0.10:1080")
 }
 
 func banner() {
