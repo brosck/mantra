@@ -1,16 +1,20 @@
-FROM golang:1.18
+FROM golang:1.24 AS builder
 
-# Set the working directory
 WORKDIR /app
 
-# Copy go.mod, main.go, Makefile, and assets
-COPY go.mod .
-COPY main.go .
-COPY Makefile .
-COPY assets/ ./assets
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Build the Go application using the Makefile
-RUN make
+COPY . .
 
-# Command to run the application
-CMD ["./build/mantra-amd64-linux"] 
+ENV CGO_ENABLED=0
+RUN GOOS=linux GOARCH=amd64 \
+    go build -o /out/mantra-amd64-linux ./main.go
+
+FROM scratch
+
+COPY --from=builder /app/assets /assets/
+
+COPY --from=builder /out/mantra-amd64-linux /mantra
+
+ENTRYPOINT ["/mantra"]
