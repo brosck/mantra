@@ -1,3 +1,4 @@
-module github.com/Brosck/mantra
+module github.com/brosck/mantra
 
-go 1.18
+go 1.24
+require golang.org/x/time v0.11.0
