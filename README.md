@@ -33,6 +33,16 @@ make
 ./build/mantra-amd64-linux -h
 ```
 
+## Usage Docker
+
+```
+docker build -t mantra .
+echo <URL> | docker run -i --rm mantra <options>
+# or
+docker run -i --rm mantra <options>
+# insert your URLs
+```
+
 ## Buy me a coffee?
 
 <a href="https://pixgg.com/MrEmpy" target="_blank">
