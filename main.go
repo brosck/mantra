@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"crypto/tls"
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
@@ -16,98 +16,129 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/proxy"
 	"golang.org/x/time/rate"
 )
 
 var (
-	thread       *int
-	silent       *bool
-	ua           *string
-	rc           *string
-	detailed	 *bool
-	extrapattern *string
-	proxyAddr 	 *string
-	ratelimit	 *int
-	limiter      *rate.Limiter
-	secrets      = make(map[string]bool)
-	secretMux    sync.Mutex
-	regexps      []*regexp.Regexp
-	httpClient   *http.Client
+	thread        *int
+	silent        *bool
+	ua            *string
+	rc            *string
+	detailed      *bool
+	extrapattern  *string
+	proxyAddr     *string
+	ratelimit     *int
+	limiter       *rate.Limiter
+	secrets       = make(map[string]bool)
+	secretMux     sync.Mutex
+	regexps       []*regexp.Regexp
+	httpClient    *http.Client
+	xtraRegComp   *regexp.Regexp
+	processedURLs = make(map[string]bool)
 )
 
 func req(rawURL string) {
 	u, err := neturl.ParseRequestURI(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[37m invalid URL: %s\n", rawURL)
+		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[0m invalid URL: %s\n", rawURL)
 		return
 	}
 
-	if ep := *extrapattern; ep != "" {
-		re, err := regexp.Compile(ep)
-		if err == nil {
-			regexps = append(regexps, re)
+	if processedURLs[rawURL] {
+		if *detailed {
+			fmt.Printf("\033[33m[*]\033[0m Skip, because of duplicate: %s\n", rawURL)
 		}
-	}
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[37m cannot build request for %s: %v\n", rawURL, err)
 		return
 	}
-	req.Header.Set("User-Agent", *ua)
-	req.Header.Set("Cookie", *rc)
+
+	processedURLs[rawURL] = true
+
+	request, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[0m cannot build request for %s: %v\n", rawURL, err)
+		return
+	}
+	request.Header.Set("User-Agent", *ua)
+	request.Header.Set("Cookie", *rc)
 
 	if *detailed {
-		fmt.Printf("\033[33m[*]\033[37m Processing %s\n", rawURL)
+		fmt.Printf("\033[33m[*]\033[0m Processing %s\n", rawURL)
 	}
 
 	if err := limiter.Wait(context.Background()); err != nil {
-        return
-    }
+		return
+	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Do(request)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[37m request failed for %s: %v\n", rawURL, err)
+		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[0m request failed for %s: %v\n", rawURL, err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[37m cannot read body for %s: %v\n", rawURL, err)
+		fmt.Fprintf(os.Stderr, "\033[31m[-]\033[0m cannot read body for %s: %v\n", rawURL, err)
 		return
 	}
 	text := string(body)
+
+	foundSecretsCount := 0
+
+	processSecret := func(secretValue string, isExtraPattern bool) {
+		secretMux.Lock()
+		if seen := secrets[secretValue]; seen {
+			secretMux.Unlock()
+			return
+		}
+		secrets[secretValue] = true
+		secretMux.Unlock()
+
+		if *detailed {
+			for i, line := range strings.Split(text, "\n") {
+				if strings.Contains(line, secretValue) {
+					tag := ""
+					if isExtraPattern {
+						tag = " -- Extra pattern detected! --"
+					}
+					fmt.Printf("\033[32m[+]\033[0m %s [ %s ] [Line: %d]\033[1;31m%s\033[0m\n", rawURL, secretValue, i+1, tag)
+				}
+			}
+			foundSecretsCount++
+			return
+		}
+
+		tag := ""
+		if isExtraPattern {
+			tag = " -- Extra pattern detected! --"
+		}
+		fmt.Printf("\033[1;32m[+]\033[0m %s [ %s ]\033[1;31m%s\033[0m\n", rawURL, secretValue, tag)
+		foundSecretsCount++
+	}
 
 	for _, re := range regexps {
 		if !re.MatchString(text) {
 			continue
 		}
-		secret := re.FindString(text)
-
-		// deduplizieren (race-safe)
-		secretMux.Lock()
-		if seen := secrets[secret]; seen {
-			secretMux.Unlock()
-			continue
+		foundSecrets := re.FindAllString(text, -1)
+		for _, secret := range foundSecrets {
+			processSecret(secret, false)
 		}
-		secrets[secret] = true
-		secretMux.Unlock()
+	}
 
-		if *detailed {
-			for i, line := range strings.Split(text, "\n") {
-				if strings.Contains(line, secret) {
-					fmt.Printf("\033[32m[+]\033[37m %s [ %s ] [Line: %d]\n", rawURL, secret, i+1)
-				}
+	if xtraRegComp != nil {
+		if xtraRegComp.MatchString(text) {
+
+			foundSecrets := xtraRegComp.FindAllString(text, -1)
+			for _, secret := range foundSecrets {
+				processSecret(secret, true)
 			}
-			continue
 		}
+	}
 
-		tag := ""
-		if secret == *extrapattern {
-			tag = " -- Extra pattern detected! --"
-		}
-		fmt.Printf("\033[1;32m[+]\033[37m %s [ %s ]%s\n", rawURL, secret, tag)
+	if *detailed && foundSecretsCount == 0 {
+		fmt.Printf("\033[33m[*]\033[0m No matches found for %s\n", rawURL)
 	}
 }
 
@@ -125,7 +156,7 @@ func init() {
 	for _, p := range base {
 		re, err := regexp.Compile(p)
 		if err != nil {
-			log.Fatalf("invalid regexp %q: %v", p, err)
+			log.Fatalf("invalid base regexp %q: %v", p, err)
 		}
 		regexps = append(regexps, re)
 	}
@@ -139,6 +170,16 @@ func init() {
 			return http.ProxyFromEnvironment(r)
 		},
 	}
+
+	if strings.HasPrefix(*proxyAddr, "socks5://") {
+		dialer, err := proxy.SOCKS5("tcp", (*proxyAddr)[len("socks5://"):], nil, proxy.Direct)
+		if err != nil {
+			log.Fatalf("failed to create SOCKS5 proxy dialer: %v", err)
+		}
+
+		tr.Dial = dialer.Dial
+	}
+
 	httpClient = &http.Client{Transport: tr, Timeout: 15 * time.Second}
 
 }
@@ -151,8 +192,8 @@ func banner() {
 	██║╚██╔╝██║██╔══██║██║╚██╗██║   ██║   ██╔══██╗██╔══██║
 	██║ ╚═╝ ██║██║  ██║██║ ╚████║   ██║   ██║  ██║██║  ██║
 	╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝
-			   ` + "\033[31m[\033[37mCoded by Brosck\033[31m]\n" +
-`                             `  + "\033[31m[\033[37mVersion 3.0\033[31m]\n")
+			   ` + "\033[31m[\033[0mCoded by Brosck\033[31m]\n" +
+		`                             ` + "\033[31m[\033[0mVersion 3.0\033[31m]\033[0m\n")
 }
 
 func main() {
@@ -162,28 +203,36 @@ func main() {
 	flag.Parse()
 
 	if !*silent {
-	    banner()
+		banner()
+	}
+
+	if ep := *extrapattern; ep != "" {
+		re, err := regexp.Compile(ep)
+		if err != nil {
+			log.Fatalf("invalid extra regexp pattern %q: %v", ep, err)
+		}
+		xtraRegComp = re
 	}
 
 	if *ratelimit > 0 {
-	    limiter = rate.NewLimiter(rate.Limit(*ratelimit), *ratelimit)
+		limiter = rate.NewLimiter(rate.Limit(*ratelimit), *ratelimit)
 	} else {
-	    limiter = rate.NewLimiter(rate.Inf, 0)
+		limiter = rate.NewLimiter(rate.Inf, 0)
 	}
 
 	for i := 0; i < *thread; i++ {
-	    wg.Add(1)
-	    go func() {
-	        defer wg.Done()
-	        for url := range urls {
-	            req(url)
-	        }
-	    }()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for url := range urls {
+				req(url)
+			}
+		}()
 	}
 
 	for stdin.Scan() {
-	    url := stdin.Text()
-	    urls <- url
+		url := stdin.Text()
+		urls <- url
 	}
 	close(urls)
 	wg.Wait()
