@@ -5,18 +5,16 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . .
+COPY main.go ./
 
 ENV CGO_ENABLED=0
-RUN GOOS=linux GOARCH=amd64 \
-    go build -o /out/mantra .
+ENV GOOS=linux
+ENV GOARCH=amd64
+
+RUN go build -o /out/mantra main.go
 
 FROM scratch
 
 COPY --from=builder /out/mantra /mantra
-
-COPY --from=builder /app/assets /assets/
-
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 ENTRYPOINT ["/mantra"]
