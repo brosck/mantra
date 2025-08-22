@@ -11,9 +11,11 @@ By using this tool, developers can quickly identify if their API keys are leakin
 In summary, this tool is an efficient and accurate solution to help secure your API keys and prevent sensitive information leaks.
 
 ## Help
+
 ![](assets/help.png)
 
 ## Usage
+
 ![](assets/usage1.png)
 
 ## Install
@@ -31,6 +33,12 @@ git clone https://github.com/brosck/mantra
 cd mantra
 make
 ./build/mantra-amd64-linux -h
+```
+
+From BlackArch Linux repositories:
+
+```
+pacman -S mantra
 ```
 
 ## Buy me a coffee?
