@@ -33,6 +33,11 @@ make
 ./build/mantra-amd64-linux -h
 ```
 
+# Results
+
+**Firebase API Key Leak**:
+<img width="1689" height="559" alt="image" src="https://github.com/user-attachments/assets/c06d2c2e-e2e8-4fc9-b20d-2f6b2ad9a096" />
+
 ## Buy me a coffee?
 
 <a href="https://pixgg.com/MrEmpy" target="_blank">
