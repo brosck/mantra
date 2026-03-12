@@ -1,3 +1,3 @@
-module github.com/Brosck/mantra
+module github.com/brosck/mantra
 
 go 1.18
